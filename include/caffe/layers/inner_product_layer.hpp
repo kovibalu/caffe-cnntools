@@ -43,6 +43,7 @@ class InnerProductLayer : public Layer<Dtype> {
   int K_;
   int N_;
   bool bias_term_;
+  bool non_neg_;
   Blob<Dtype> bias_multiplier_;
   bool transpose_;  ///< if true, assume transposed weights
 };

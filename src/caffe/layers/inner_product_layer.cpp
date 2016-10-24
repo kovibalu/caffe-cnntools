@@ -11,6 +11,7 @@ void InnerProductLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const int num_output = this->layer_param_.inner_product_param().num_output();
   bias_term_ = this->layer_param_.inner_product_param().bias_term();
+  non_neg_ = this->layer_param_.inner_product_param().non_neg();
   transpose_ = this->layer_param_.inner_product_param().transpose();
   N_ = num_output;
   const int axis = bottom[0]->CanonicalAxisIndex(
@@ -85,6 +86,14 @@ void InnerProductLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
+  if (non_neg_) {
+    // Set negative weights to 0 before we use them
+    const int count = this->blobs_[0]->count();
+    Dtype* weight = this->blobs_[0]->mutable_cpu_data();
+    for (int i = 0; i < count; ++i) {
+      weight[i] = std::max(weight[i], Dtype(0));
+    }
+  }
   const Dtype* weight = this->blobs_[0]->cpu_data();
   caffe_cpu_gemm<Dtype>(CblasNoTrans, transpose_ ? CblasNoTrans : CblasTrans,
       M_, N_, K_, (Dtype)1.,

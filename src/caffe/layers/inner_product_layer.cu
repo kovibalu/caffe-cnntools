@@ -7,11 +7,27 @@
 namespace caffe {
 
 template <typename Dtype>
+__global__ void SetNegToZero(const int n, Dtype* weight) {
+  CUDA_KERNEL_LOOP(index, n) {
+    weight[index] = weight[index] > 0 ? weight[index] : 0;
+  }
+}
+
+template <typename Dtype>
 void InnerProductLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->gpu_data();
   Dtype* top_data = top[0]->mutable_gpu_data();
   const Dtype* weight = this->blobs_[0]->gpu_data();
+  if (non_neg_) {
+    // Set negative weights to 0 before we use them
+    const int count = this->blobs_[0]->count();
+    Dtype* weight = this->blobs_[0]->mutable_cpu_data();
+    // NOLINT_NEXT_LINE(whitespace/operators)
+    SetNegToZero<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
+        count, weight);
+    CUDA_POST_KERNEL_CHECK;
+  }
   if (M_ == 1) {
     caffe_gpu_gemv<Dtype>(CblasNoTrans, N_, K_, (Dtype)1.,
                          weight, bottom_data, (Dtype)0., top_data);
