@@ -141,7 +141,8 @@ class Function(object):
 
         if self.in_place:
             layer.top.extend(layer.bottom)
-        else:
+        elif self.type_name != 'Silence':
+            # Hacky solution: Ignore all tops for "Silence" layer
             for top in self.tops:
                 layer.top.append(self._get_top_name(top, names, autonames))
         layer.name = self._get_name(names, autonames)
