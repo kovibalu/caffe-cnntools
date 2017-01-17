@@ -7,6 +7,18 @@
 namespace caffe {
 
 template <typename Dtype>
+void HingeLossLayer<Dtype>::LayerSetUp(
+    const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  LossLayer<Dtype>::LayerSetUp(bottom, top);
+
+  has_ignore_label_ =
+    this->layer_param_.loss_param().has_ignore_label();
+  if (has_ignore_label_) {
+    ignore_label_ = this->layer_param_.loss_param().ignore_label();
+  }
+}
+
+template <typename Dtype>
 void HingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
   const Dtype* bottom_data = bottom[0]->cpu_data();
@@ -18,12 +30,21 @@ void HingeLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   caffe_copy(count, bottom_data, bottom_diff);
   for (int i = 0; i < num; ++i) {
-    bottom_diff[i * dim + static_cast<int>(label[i])] *= -1;
+    const int label_value = static_cast<int>(label[i]);
+    if (has_ignore_label_ && label_value == ignore_label_) {
+      continue;
+    }
+    bottom_diff[i * dim + label_value] *= -1;
   }
   for (int i = 0; i < num; ++i) {
+    const int label_value = static_cast<int>(label[i]);
     for (int j = 0; j < dim; ++j) {
-      bottom_diff[i * dim + j] = std::max(
-        Dtype(0), 1 + bottom_diff[i * dim + j]);
+      if (has_ignore_label_ && label_value == ignore_label_) {
+        bottom_diff[i * dim + j] = Dtype(0);
+      } else {
+        bottom_diff[i * dim + j] = std::max(
+          Dtype(0), 1 + bottom_diff[i * dim + j]);
+      }
     }
   }
   Dtype* loss = top[0]->mutable_cpu_data();
@@ -54,7 +75,11 @@ void HingeLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     int dim = count / num;
 
     for (int i = 0; i < num; ++i) {
-      bottom_diff[i * dim + static_cast<int>(label[i])] *= -1;
+      const int label_value = static_cast<int>(label[i]);
+      if (has_ignore_label_ && label_value == ignore_label_) {
+        continue;
+      }
+      bottom_diff[i * dim + label_value] *= -1;
     }
 
     const Dtype loss_weight = top[0]->cpu_diff()[0];
